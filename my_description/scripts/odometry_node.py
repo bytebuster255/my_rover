@@ -4,17 +4,15 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int32
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import TransformStamped
-from tf2_ros import TransformBroadcaster
 
 class OdometryNode(Node):
     def __init__(self):
         super().__init__('odometry_node')
 
-        # --- Rover Parametreleri ---
-        self.declare_parameter('wheel_radius', 0.05)      # Tekerlek yarıçapı (m)
-        self.declare_parameter('wheel_separation', 0.3)   # Tekerlekler arası mesafe (m)
-        self.declare_parameter('ticks_per_rev', 1050.0)    # 1 tam turda okunan tick
+        # --- Rover Parametreleri (URDF İLE EŞLEŞTİRİLDİ) ---
+        self.declare_parameter('wheel_radius', 0.09)      # URDF'deki wheel_radius
+        self.declare_parameter('wheel_separation', 0.43)  # URDF: chassis_width (0.36) + wheel_width (0.07)
+        self.declare_parameter('ticks_per_rev', 400.0)    # 1 tam turda okunan tick (Bunu motorunuza göre ayarlayın)
         
         self.wheel_radius = self.get_parameter('wheel_radius').value
         self.wheel_separation = self.get_parameter('wheel_separation').value
@@ -31,17 +29,16 @@ class OdometryNode(Node):
         
         self.last_time = self.get_clock().now()
 
-        # --- Subscriber'lar (Arduino topic isimleri ile eşleşiyor) ---
+        # --- Subscriber'lar ---
         self.create_subscription(Int32, 'encoder_ticks_1', self.tick1_cb, 10)
         self.create_subscription(Int32, 'encoder_ticks_2', self.tick2_cb, 10)
         self.create_subscription(Int32, 'encoder_ticks_3', self.tick3_cb, 10)
         self.create_subscription(Int32, 'encoder_ticks_4', self.tick4_cb, 10)
 
-        # --- Publisher ve TF Broadcaster ---
+        # --- Publisher ---
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        self.tf_broadcaster = TransformBroadcaster(self)
 
-        # --- Timer (10 Hz - Arduino'nun TIMER_TIMEOUT_MS 100 değeri ile senkronize) ---
+        # --- Timer (10 Hz) ---
         self.timer = self.create_timer(0.1, self.update_odometry)
 
     # Callback Fonksiyonları
@@ -61,7 +58,7 @@ class OdometryNode(Node):
         delta_ticks = [self.ticks[i] - self.prev_ticks[i] for i in range(4)]
         self.prev_ticks = list(self.ticks)
 
-        # Sol(1,3) ve Sağ(2,4) taraf için ortalama tick değişimini hesapla (Skid-Steer Mantığı)
+        # Sol ve Sağ taraf için ortalama tick değişimi
         delta_tick_left = (delta_ticks[0] + delta_ticks[2]) / 2.0
         delta_tick_right = (delta_ticks[1] + delta_ticks[3]) / 2.0
 
@@ -71,7 +68,7 @@ class OdometryNode(Node):
         d_left = delta_tick_left * m_per_tick
         d_right = delta_tick_right * m_per_tick
 
-        # Robotun merkezinin kat ettiği mesafe ve kendi etrafındaki dönüş açısı (Radyan)
+        # Robotun merkezinin kat ettiği mesafe ve kendi etrafındaki dönüş açısı
         d_center = (d_left + d_right) / 2.0
         d_theta = (d_right - d_left) / self.wheel_separation
 
@@ -87,25 +84,13 @@ class OdometryNode(Node):
         # Yaw açısından Quaternion oluştur
         q = self.quaternion_from_yaw(self.th)
 
-        # ================= TF YAYINI (odom -> base_link) =================
-        t = TransformStamped()
-        t.header.stamp = current_time.to_msg()
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_link'
-        t.transform.translation.x = self.x
-        t.transform.translation.y = self.y
-        t.transform.translation.z = 0.0
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
-        self.tf_broadcaster.sendTransform(t)
-
         # ================= ODOMETRİ YAYINI (nav_msgs/Odometry) =================
         odom = Odometry()
         odom.header.stamp = current_time.to_msg()
         odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
+        
+        # EKF Config ile tam uyum için child_frame_id base_footprint olmalı
+        odom.child_frame_id = 'base_footprint' 
 
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
@@ -115,10 +100,18 @@ class OdometryNode(Node):
         odom.pose.pose.orientation.z = q[2]
         odom.pose.pose.orientation.w = q[3]
 
-        # Skid-steer'de y ekseninde kayma (slip) olabilir ama kinematik modelde v_y 0 varsayılır
         odom.twist.twist.linear.x = v_x
         odom.twist.twist.linear.y = 0.0
         odom.twist.twist.angular.z = v_th
+
+        # Kovaryans Matrisleri (Sensörün kendine olan güveni)
+        odom.pose.covariance[0] = 0.01    # X pozisyonu 
+        odom.pose.covariance[7] = 0.01    # Y pozisyonu 
+        odom.pose.covariance[35] = 0.05   # YAW açısı 
+        
+        odom.twist.covariance[0] = 0.01   # İleri hız (X) 
+        odom.twist.covariance[7] = 1e-9   # Y hızı yok (Skid steer yanal gidemez)
+        odom.twist.covariance[35] = 0.05  # Dönüş hızı (YAW) 
 
         self.odom_pub.publish(odom)
         self.last_time = current_time

@@ -20,10 +20,9 @@ slam_toolbox:
     # Harita güncelleme parametreleri
     map_update_interval: 5.0       # saniye — ne sıklıkla harita güncellenir
     resolution: 0.05               # metre/piksel — 5 cm
-    max_laser_range: 15.0          # lidar'ın max_range ile aynı olmalı
-    minimum_travel_distance: 0.15   # metre — ne kadar gidince yeni scan alınır
-    minimum_travel_heading: 0.1
-    minimum_time_interval: 0.5    # radyan — ~17°
+    max_laser_range: 12.0          # lidar'ın max_range ile aynı olmalı
+    minimum_travel_distance: 0.3   # metre — ne kadar gidince yeni scan alınır
+    minimum_travel_heading: 0.3    # radyan — ~17°
 
     # Loop closure (kapalı alan düzeltme)
     do_loop_closing: true
@@ -33,7 +32,7 @@ slam_toolbox:
     loop_match_minimum_response_fine: 0.45
 
     # Tarama eşleştirme
-    correlation_search_space_dimension: 0.8
+    correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
 

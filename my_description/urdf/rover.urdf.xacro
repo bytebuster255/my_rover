@@ -10,12 +10,13 @@
     <xacro:property name="wheel_width" value="0.07"/>
     <xacro:property name="wheel_mass" value="2.0"/>
 
-    <xacro:macro name="box_inertia" params="m w h d">
+    <!-- DÜZELTİLDİ: Atalet formülleri x, y ve z parametreleri ile doğru matrise oturtuldu -->
+    <xacro:macro name="box_inertia" params="m x y z">
         <inertial>
             <mass value="${m}"/>
-            <inertia ixx="${(m/12) * (h*h + d*d)}" ixy="0.0" ixz="0.0" 
-                     iyy="${(m/12) * (w*w + d*d)}" iyz="0.0" 
-                     izz="${(m/12) * (w*w + h*h)}"/>
+            <inertia ixx="${(m/12) * (y*y + z*z)}" ixy="0.0" ixz="0.0" 
+                     iyy="${(m/12) * (x*x + z*z)}" iyz="0.0" 
+                     izz="${(m/12) * (x*x + y*y)}"/>
         </inertial>
     </xacro:macro>
 
@@ -27,6 +28,16 @@
                      izz="${(m/2) * (r*r)}"/>
         </inertial>
     </xacro:macro>
+
+    <!-- EKLENDİ: Simülasyonda yerin dibine girmeyi engelleyen ana referans noktası -->
+    <link name="base_footprint"/>
+
+    <joint name="base_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="base_link"/>
+        <!-- Robotu tekerlek yarıçapı (0.09) kadar yukarı kaldırır, tekerlekler tam yere basar -->
+        <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+    </joint>
 
     <link name="base_link">
         <visual>
@@ -42,13 +53,55 @@
                 <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
             </geometry>
         </collision>
-        <xacro:box_inertia m="${chassis_mass}" w="${chassis_width}" d="${chassis_length}" h="${chassis_height}"/>
+        <xacro:box_inertia m="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
     </link>
+
+    <!-- EKLENDİ: EKF Filtresinin çökmemesi için gerekli IMU TF Linki -->
+    <link name="imu_link">
+        <visual>
+            <geometry>
+                <box size="0.02 0.02 0.01"/>
+            </geometry>
+            <material name="yellow">
+                <color rgba="1.0 1.0 0.0 1.0"/>
+            </material>
+        </visual>
+        <xacro:box_inertia m="0.05" x="0.02" y="0.02" z="0.01"/>
+    </link>
+
+    <joint name="imu_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="imu_link"/>
+        <!-- Şasinin tam merkezine oturtuldu -->
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+    <gazebo reference="imu_link">
+        <gravity>true</gravity>
+        <sensor name="imu_sensor" type="imu">
+            <always_on>true</always_on>
+            <update_rate>100</update_rate>
+            <visualize>true</visualize>
+            <topic>__default_topic__</topic>
+            <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
+                <topicName>imu/data</topicName>
+                <bodyName>imu_link</bodyName>
+                <updateRateHZ>100.0</updateRateHZ>
+                <gaussianNoise>0.001</gaussianNoise>
+                <xyzOffset>0 0 0</xyzOffset>
+                <rpyOffset>0 0 0</rpyOffset>
+                <frameName>imu_link</frameName>
+                <ros>
+                    <remapping>~/out:=imu/data</remapping>
+                </ros>
+            </plugin>
+        </sensor>
+    </gazebo>
 
     <xacro:macro name="wheel" params="prefix x_reflect y_reflect">
         <link name="${prefix}_wheel">
+            <!-- DÜZELTİLDİ: Visual ve Collision'dan RPY rotasyonları kaldırıldı. Silindir artık doğal Z ekseninde -->
             <visual>
-                <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
                     <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
                 </geometry>
@@ -57,19 +110,22 @@
                 </material>
             </visual>
             <collision>
-                <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
                 <geometry>
                     <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
                 </geometry>
             </collision>
+            <!-- Atalet artık şekille %100 eşleşiyor -->
             <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" h="${wheel_width}"/>
         </link>
 
         <joint name="${prefix}_wheel_joint" type="continuous">
             <parent link="base_link"/>
             <child link="${prefix}_wheel"/>
-            <origin xyz="${x_reflect * (chassis_length/2)} ${y_reflect * (chassis_width/2 + wheel_width/2)} 0" rpy="0 0 0"/>
-            <axis xyz="0 1 0"/>
+            <!-- DÜZELTİLDİ: Joint'in kendisi X ekseni etrafında 90 derece (-pi/2) döndürüldü. -->
+            <origin xyz="${x_reflect * (chassis_length/2)} ${y_reflect * (chassis_width/2 + wheel_width/2)} 0" rpy="${-pi/2} 0 0"/>
+            <!-- Artık tekerlek kendi doğal Z ekseninde döner (Robotun Y eksenine denk gelir) -->
+            <axis xyz="0 0 1"/>
             <dynamics damping="2.0" friction="1.5"/>
         </joint>
 
@@ -115,7 +171,7 @@
                 <color rgba="0.75 0.75 0.75 1"/>
             </material>
         </visual>
-        <xacro:box_inertia m="0.1" w="0.090" d="0.025" h="0.025"/>
+        <xacro:box_inertia m="0.1" x="0.025" y="0.090" z="0.025"/>
     </link>
     
     <joint name="camera_joint" type="fixed">
@@ -155,10 +211,11 @@
             <max_wheel_acceleration>2.0</max_wheel_acceleration>
             <command_timeout>0.1</command_timeout>
             <publish_odom>true</publish_odom>
-            <publish_odom_tf>true</publish_odom_tf>
+            <publish_odom_tf>false</publish_odom_tf>
             <publish_wheel_tf>true</publish_wheel_tf>
             <odometry_frame>odom</odometry_frame>
-            <robot_base_frame>base_link</robot_base_frame>
+            <!-- DÜZELTİLDİ: Ana robot frame'i base_footprint yapıldı -->
+            <robot_base_frame>base_footprint</robot_base_frame>
         </plugin>
     </gazebo>
 
