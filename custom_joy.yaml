@@ -1,0 +1,18 @@
+teleop_twist_joy_node:
+  ros__parameters:
+    # İleri-Geri hareket (Linear X) -> Sağ Analog Yukarı/Aşağı (Genelde Axis 4)
+    axis_linear:
+      x: 4
+    # Sağ-Sol dönüş (Angular Yaw) -> Sol Analog Sağ/Sol (Genelde Axis 0)
+    axis_angular:
+      yaw: 0
+    
+    # Hız çarpanları (İhtiyacına göre bu değerleri artırıp azaltabilirsin)
+    scale_linear:
+      x: 0.7
+    scale_angular:
+      yaw: 0.4
+
+    # Basılı tutma zorunluluğunu KAPATIYORUZ. 
+    # Gamepad artık sürekli aktif olacak, butona basmana gerek yok.
+    require_enable_button: false

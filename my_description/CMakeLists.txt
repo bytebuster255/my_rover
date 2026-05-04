@@ -13,7 +13,7 @@ find_package(xacro REQUIRED)
 find_package(gazebo_ros REQUIRED)
 
 install(
-  DIRECTORY urdf launch worlds rviz scripts
+  DIRECTORY urdf launch worlds rviz scripts config
   DESTINATION share/${PROJECT_NAME}
 )
 

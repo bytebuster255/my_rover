@@ -14,7 +14,7 @@ class OdometryNode(Node):
         # --- Rover Parametreleri ---
         self.declare_parameter('wheel_radius', 0.05)      # Tekerlek yarıçapı (m)
         self.declare_parameter('wheel_separation', 0.3)   # Tekerlekler arası mesafe (m)
-        self.declare_parameter('ticks_per_rev', 200.0)    # 1 tam turda okunan tick
+        self.declare_parameter('ticks_per_rev', 1050.0)    # 1 tam turda okunan tick
         
         self.wheel_radius = self.get_parameter('wheel_radius').value
         self.wheel_separation = self.get_parameter('wheel_separation').value

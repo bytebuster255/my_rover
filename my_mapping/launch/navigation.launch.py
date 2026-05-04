@@ -14,13 +14,13 @@ def generate_launch_description():
 
     map_file_arg = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(os.path.expanduser('~'), 'my_map.yaml'),
+        default_value=os.path.join(os.path.expanduser('~'), 'haritam_ismi.yaml'),
         description='Harita dosyası'
     )
 
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time',
-        default_value='true',
+        default_value='false',
         description='Sim zamanı kullan'
     )
 
